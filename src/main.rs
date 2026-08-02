@@ -1,6 +1,7 @@
 mod api;
 mod config;
 mod db;
+mod domain;
 mod error;
 mod notify;
 mod repo;
