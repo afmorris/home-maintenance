@@ -1,0 +1,156 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# home-maintenance dev bootstrap script.
+# Usage: ./.dev [--postgres] [--fresh] [--check] [-y]
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DATA_DIR="${DATA_DIR:-$REPO_ROOT/data}"
+PORT="${PORT:-8080}"
+DATABASE_URL="${DATABASE_URL:-}"
+POSTGRES_CONTAINER="home-maintenance-postgres"
+POSTGRES_VOLUME="home-maintenance-pgdata"
+
+usage() {
+    cat <<EOF
+Usage: ./.dev [OPTIONS]
+
+Options:
+  --postgres   Start a local Postgres container and use it.
+  --fresh      Wipe the local database (SQLite or Postgres volume) first.
+  --check      Run fmt --check, clippy, and tests; do not start the server.
+  -y           Skip the cargo-watch install prompt and install automatically.
+  -h, --help   Show this help.
+EOF
+}
+
+require_cargo() {
+    if ! command -v cargo &>/dev/null; then
+        cat <<EOF
+ERROR: cargo not found in PATH.
+Install Rust from https://rustup.rs/ and try again.
+EOF
+        exit 1
+    fi
+}
+
+maybe_install_cargo_watch() {
+    local auto="$1"
+    if command -v cargo-watch &>/dev/null; then
+        return 0
+    fi
+    if [[ "$auto" == "y" ]]; then
+        cargo install cargo-watch
+    else
+        read -r -p "cargo-watch not found. Install it now? [Y/n] " answer
+        case "$answer" in
+            [Yy]|"") cargo install cargo-watch ;;
+            *) echo "Skipping install; hot reload will not be available. Use 'cargo run' manually." ;;
+        esac
+    fi
+}
+
+start_postgres() {
+    if ! command -v docker &>/dev/null; then
+        echo "ERROR: docker not found. Install Docker or omit --postgres."
+        exit 1
+    fi
+    if [[ "${FRESH:-}" == "1" ]]; then
+        docker rm -f "$POSTGRES_CONTAINER" 2>/dev/null || true
+        docker volume rm "$POSTGRES_VOLUME" 2>/dev/null || true
+    fi
+    docker volume create "$POSTGRES_VOLUME" >/dev/null || true
+    if ! docker ps -q -f name="$POSTGRES_CONTAINER" | grep -q .; then
+        docker run -d \
+            --name "$POSTGRES_CONTAINER" \
+            -e POSTGRES_USER=hm \
+            -e POSTGRES_PASSWORD=hm \
+            -e POSTGRES_DB=home_maintenance \
+            -p 127.0.0.1:5432:5432 \
+            -v "$POSTGRES_VOLUME":/var/lib/postgresql/data \
+            --health-cmd "pg_isready -U hm -d home_maintenance" \
+            --health-interval 5s \
+            --health-timeout 5s \
+            --health-retries 5 \
+            postgres:17 >/dev/null
+    fi
+    echo "Waiting for Postgres to be healthy..."
+    for _ in {1..30}; do
+        if docker ps -f name="$POSTGRES_CONTAINER" --format '{{.Status}}' | grep -q healthy; then
+            break
+        fi
+        sleep 1
+    done
+    export DATABASE_URL="postgres://hm:hm@127.0.0.1:5432/home_maintenance"
+}
+
+wipe_sqlite() {
+    if [[ -f "$DATA_DIR/home-maintenance.db" ]]; then
+        rm -f "$DATA_DIR/home-maintenance.db" "$DATA_DIR/home-maintenance.db"-*
+        echo "Removed SQLite database at $DATA_DIR/home-maintenance.db"
+    fi
+}
+
+run_checks() {
+    cargo fmt -- --check
+    cargo clippy -- -D warnings
+    cargo test
+    if command -v docker &>/dev/null; then
+        echo "Running tests against PostgreSQL..."
+        start_postgres
+        DATABASE_URL="$DATABASE_URL" cargo test
+    fi
+}
+
+main() {
+    local postgres=0 fresh=0 check=0 auto_install=""
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --postgres) postgres=1 ;;
+            --fresh) fresh=1 ;;
+            --check) check=1 ;;
+            -y) auto_install="y" ;;
+            -h|--help) usage; exit 0 ;;
+            *) echo "Unknown option: $1"; usage; exit 1 ;;
+        esac
+        shift
+    done
+
+    require_cargo
+    cd "$REPO_ROOT"
+
+    if [[ "$check" == "1" ]]; then
+        run_checks
+        exit 0
+    fi
+
+    mkdir -p "$DATA_DIR"
+
+    if [[ "$fresh" == "1" ]]; then
+        if [[ "$postgres" == "1" ]]; then
+            docker rm -f "$POSTGRES_CONTAINER" 2>/dev/null || true
+            docker volume rm "$POSTGRES_VOLUME" 2>/dev/null || true
+        else
+            wipe_sqlite
+        fi
+    fi
+
+    if [[ "$postgres" == "1" ]]; then
+        start_postgres
+        echo "Using PostgreSQL: $DATABASE_URL"
+    else
+        echo "Using SQLite at $DATA_DIR/home-maintenance.db"
+    fi
+
+    maybe_install_cargo_watch "$auto_install"
+
+    if command -v cargo-watch &>/dev/null; then
+        echo "Starting server at http://localhost:$PORT"
+        DATABASE_URL="${DATABASE_URL:-}" DATA_DIR="$DATA_DIR" cargo watch -x run
+    else
+        echo "Starting server at http://localhost:$PORT (no hot reload)"
+        DATABASE_URL="${DATABASE_URL:-}" DATA_DIR="$DATA_DIR" cargo run
+    fi
+}
+
+main "$@"

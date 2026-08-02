@@ -1,0 +1,1 @@
+// Log entry repository functions.
