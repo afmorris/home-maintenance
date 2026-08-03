@@ -13,7 +13,8 @@ use home_maintenance::repo::locations::{
 };
 use home_maintenance::repo::log::{LogEntryInput, get_log_entry, list_log_entries};
 use home_maintenance::repo::reminders::{
-    complete_task_transaction, list_reminders, snooze_reminder, upsert_reminder,
+    complete_task_transaction, list_reminders, list_reminders_with_tasks, snooze_reminder,
+    upsert_reminder,
 };
 use home_maintenance::repo::supplies::{
     SupplyInput, create_supply, delete_supply, get_supply, update_supply,
@@ -164,6 +165,50 @@ async fn test_task_and_reminder() {
 
         delete_task(&db, &id).await.unwrap();
         assert!(get_task(&db, &id).await.is_err());
+    })
+    .await
+}
+
+#[tokio::test]
+async fn test_list_reminders_with_tasks() {
+    with_db(|db| async move {
+        let asset_id = uuid();
+        create_asset(
+            &db,
+            &asset_id,
+            AssetInput {
+                name: "Water Heater".to_string(),
+                location_id: None,
+                category: "appliance".to_string(),
+                make: None,
+                model: None,
+                serial: None,
+                install_date: None,
+                warranty_end: None,
+                notes: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        let task_id = uuid();
+        let task = TaskInput {
+            asset_id: Some(asset_id.clone()),
+            name: "Drain water heater".to_string(),
+            schedule_mode: "floating".to_string(),
+            interval_value: Some(6),
+            interval_unit: Some("month".to_string()),
+            ..TaskInput::default()
+        };
+        create_task(&db, &task_id, task).await.unwrap();
+        upsert_reminder(&db, &task_id, "2025-01-01", None)
+            .await
+            .unwrap();
+
+        let rows = list_reminders_with_tasks(&db, None).await.unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].task_name, "Drain water heater");
+        assert_eq!(rows[0].asset_name, Some("Water Heater".to_string()));
     })
     .await
 }

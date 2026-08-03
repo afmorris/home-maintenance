@@ -20,6 +20,20 @@ pub struct LogEntry {
     pub notes: Option<String>,
 }
 
+/// Recent log entries enriched with task and asset names for the dashboard.
+#[derive(Debug, FromRow, Serialize)]
+pub struct LogEntryWithNames {
+    pub id: String,
+    pub kind: String,
+    pub completed_date: String,
+    pub cost_cents: Option<i64>,
+    pub vendor: Option<String>,
+    pub performed_by: Option<String>,
+    pub notes: Option<String>,
+    pub task_name: Option<String>,
+    pub asset_name: Option<String>,
+}
+
 #[derive(Debug, Default)]
 pub struct LogEntryInput {
     pub task_id: Option<String>,
@@ -103,6 +117,31 @@ pub async fn list_log_entries(
     }
 
     let rows = q.fetch_all(&db.pool).await?;
+    Ok(rows)
+}
+
+pub async fn recent_log_entries(db: &Db, limit: i64) -> Result<Vec<LogEntryWithNames>, AppError> {
+    let rows = query_as::<LogEntryWithNames>(
+        "SELECT
+            le.id,
+            le.kind,
+            le.completed_date,
+            le.cost_cents,
+            le.vendor,
+            le.performed_by,
+            le.notes,
+            t.name AS task_name,
+            a.name AS asset_name
+         FROM log_entries le
+         LEFT JOIN tasks t ON t.id = le.task_id
+         LEFT JOIN assets a ON a.id = le.asset_id
+         ORDER BY le.completed_date DESC, le.created_at DESC
+         LIMIT $1",
+        db,
+    )
+    .bind(limit)
+    .fetch_all(&db.pool)
+    .await?;
     Ok(rows)
 }
 

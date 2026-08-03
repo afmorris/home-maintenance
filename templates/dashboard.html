@@ -21,7 +21,90 @@
   </header>
   <main class="dashboard">
     <h1>Dashboard</h1>
-    <p>Build in progress — Milestone 1 scaffold complete.</p>
+
+    <div class="counts">
+      <div class="count-card count-overdue">
+        <span class="count-number">{{ counts.overdue }}</span>
+        <span class="count-label">Overdue</span>
+      </div>
+      <div class="count-card count-due">
+        <span class="count-number">{{ counts.due }}</span>
+        <span class="count-label">Due this week</span>
+      </div>
+      <div class="count-card count-upcoming">
+        <span class="count-number">{{ counts.upcoming }}</span>
+        <span class="count-label">Upcoming (30 days)</span>
+      </div>
+    </div>
+
+    <div class="dashboard-columns">
+      <section class="dashboard-column column-overdue">
+        <h2>Overdue</h2>
+        {% for r in overdue %}
+          {{ r.render()|safe }}
+        {% endfor %}
+        {% if overdue.is_empty() %}
+          <p class="empty">No overdue reminders.</p>
+        {% endif %}
+      </section>
+
+      <section class="dashboard-column column-due">
+        <h2>Due this week</h2>
+        {% for r in due %}
+          {{ r.render()|safe }}
+        {% endfor %}
+        {% if due.is_empty() %}
+          <p class="empty">Nothing due this week.</p>
+        {% endif %}
+      </section>
+
+      <section class="dashboard-column column-upcoming">
+        <h2>Upcoming (next 30 days)</h2>
+        {% for r in upcoming %}
+          {{ r.render()|safe }}
+        {% endfor %}
+        {% if upcoming.is_empty() %}
+          <p class="empty">No upcoming reminders in the next 30 days.</p>
+        {% endif %}
+      </section>
+    </div>
+
+    <section class="recent-log">
+      <h2>Recent log entries</h2>
+      {% let empty = "" %}
+    {% let no_task = "" %}
+    {% let no_asset = "" %}
+    {% if recent_log.is_empty() %}
+        <p class="empty">No log entries yet.</p>
+      {% else %}
+        <table class="log-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Task</th>
+              <th>Asset</th>
+              <th>Kind</th>
+              <th>Cost</th>
+              <th>Vendor</th>
+              <th>Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for entry in recent_log %}
+            <tr>
+              <td>{{ entry.completed_date }}</td>
+              <td>{{ entry.task_name.as_deref().unwrap_or(no_task) }}</td>
+              <td>{{ entry.asset_name.as_deref().unwrap_or(no_asset) }}</td>
+              <td>{{ entry.kind }}</td>
+              <td>{% if let Some(c) = entry.cost_cents %}{% let dollars = c / 100 %}{% let cents = c % 100 %}${{ dollars }}.{% if cents < 10 %}0{% endif %}{{ cents }}{% endif %}</td>
+              <td>{{ entry.vendor.as_deref().unwrap_or(empty) }}</td>
+              <td>{{ entry.notes.as_deref().unwrap_or(empty) }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% endif %}
+    </section>
   </main>
 </body>
 </html>

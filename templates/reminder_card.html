@@ -1,0 +1,28 @@
+<div class="reminder-card">
+  <div class="reminder-info">
+    <h3>{{ task_name }}</h3>
+    <p class="asset">{{ asset_name.as_deref().unwrap_or("No asset") }}</p>
+    <p class="due-date">Due: {{ due_date }}</p>
+  </div>
+  <div class="reminder-actions">
+    <form
+      hx-post="/api/v1/tasks/{{ task_id }}/complete"
+      hx-target="closest .reminder-card"
+      hx-swap="outerHTML"
+      class="complete-form"
+    >
+      <input type="number" name="cost_cents" placeholder="Cost (cents)" min="0" step="1">
+      <input type="text" name="notes" placeholder="Notes">
+      <button type="submit" class="btn btn-primary">Done</button>
+    </form>
+    <form
+      hx-post="/api/v1/tasks/{{ task_id }}/snooze"
+      hx-target="closest .reminder-card"
+      hx-swap="outerHTML"
+      class="snooze-form"
+    >
+      <input type="hidden" name="days" value="7">
+      <button type="submit" class="btn btn-secondary">Snooze 7 days</button>
+    </form>
+  </div>
+</div>

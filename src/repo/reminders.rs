@@ -25,6 +25,61 @@ pub struct ReminderInput {
     pub task_id: String,
 }
 
+/// Flat reminder row with joined task and asset names, intended for dashboard
+/// rendering. The status string is derived in Rust so the same logic works on
+/// both Postgres and SQLite; the SQL projection avoids dialect-specific date
+/// functions except for optional SQLite-side filtering in `list_reminders`.
+#[derive(Debug, FromRow)]
+pub struct ReminderWithTask {
+    pub id: String,
+    pub task_id: String,
+    pub task_name: String,
+    pub asset_id: Option<String>,
+    pub asset_name: Option<String>,
+    pub due_date: String,
+    pub snoozed_until: Option<String>,
+}
+
+pub async fn list_reminders_with_tasks(
+    db: &Db,
+    limit: Option<i64>,
+) -> Result<Vec<ReminderWithTask>, AppError> {
+    let mut sql = String::from(
+        "SELECT
+            r.id,
+            r.task_id,
+            t.name AS task_name,
+            t.asset_id,
+            a.name AS asset_name,
+            r.due_date,
+            r.snoozed_until
+         FROM reminders r
+         JOIN tasks t ON t.id = r.task_id
+         LEFT JOIN assets a ON a.id = t.asset_id
+         WHERE t.active = 1
+         ORDER BY r.due_date",
+    );
+
+    if limit.is_some() {
+        sql.push_str(" LIMIT $L");
+    }
+
+    let mut p_sql = sql;
+    if limit.is_some() {
+        p_sql = p_sql.replace("$L", "$1");
+    }
+
+    let static_sql: &'static str = Box::leak(p_sql.into_boxed_str());
+    let mut q = query_as::<ReminderWithTask>(static_sql, db);
+
+    if let Some(l) = limit {
+        q = q.bind(l);
+    }
+
+    let rows = q.fetch_all(&db.pool).await?;
+    Ok(rows)
+}
+
 pub async fn list_reminders(
     db: &Db,
     status: Option<&str>,
@@ -204,7 +259,7 @@ pub async fn snooze_reminder(
     until_date: &str,
 ) -> Result<Reminder, AppError> {
     let now = chrono::Utc::now().to_rfc3339();
-    query(
+    let result = query(
         "UPDATE reminders SET updated_at = $1, snoozed_until = $2 WHERE task_id = $3",
         db,
     )
@@ -213,6 +268,9 @@ pub async fn snooze_reminder(
     .bind(task_id)
     .execute(&db.pool)
     .await?;
+    if result.rows_affected() == 0 {
+        return Err(AppError::NotFound);
+    }
     get_reminder_by_task(db, task_id).await
 }
 
