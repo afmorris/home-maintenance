@@ -1,4 +1,5 @@
 use crate::config::CONFIG;
+use sqlx::AssertSqlSafe;
 use sqlx::Error as SqlxError;
 use sqlx::Pool;
 use sqlx::any::{Any, AnyConnectOptions, AnyPoolOptions, install_default_drivers};
@@ -117,19 +118,21 @@ pub async fn init_pool() -> Result<Db, SqlxError> {
 }
 
 /// Rewrite a query string using `$1, $2, ...` placeholders to the dialect
-/// appropriate for the backend. All repo-layer SQL should be authored for
-/// Postgres ($N) and passed through this helper before execution on SQLite.
+/// appropriate for the backend. All repository SQL is authored for Postgres
+/// ($N). For SQLite this helper rewrites placeholders to `?`.
+///
+/// Returns a `Cow<'static, str>` so that in the Postgres case we can return
+/// the original literal with `'static` lifetime (no allocation) while in the
+/// SQLite case we return an owned `String` that lives for `'static`.
 #[allow(dead_code)]
-pub fn bind_sql(sql: &str, backend: &DbBackend) -> String {
+pub fn bind_sql(sql: &'static str, backend: &DbBackend) -> std::borrow::Cow<'static, str> {
     match backend {
-        DbBackend::Postgres => sql.to_string(),
+        DbBackend::Postgres => std::borrow::Cow::Borrowed(sql),
         DbBackend::Sqlite => {
-            // Replace $1, $2, ... with ? in order.
             let mut result = String::with_capacity(sql.len());
             let mut chars = sql.chars().peekable();
             while let Some(ch) = chars.next() {
                 if ch == '$' && chars.peek().map(|c| c.is_ascii_digit()).unwrap_or(false) {
-                    // consume number
                     while chars.peek().map(|c| c.is_ascii_digit()).unwrap_or(false) {
                         chars.next();
                     }
@@ -138,7 +141,27 @@ pub fn bind_sql(sql: &str, backend: &DbBackend) -> String {
                     result.push(ch);
                 }
             }
-            result
+            std::borrow::Cow::Owned(result)
         }
     }
+}
+
+/// Convenience: create a query builder with placeholder-aware SQL.
+#[allow(dead_code)]
+pub fn query(
+    sql: &'static str,
+    db: &Db,
+) -> sqlx::query::Query<'static, Any, sqlx::any::AnyArguments> {
+    sqlx::query(AssertSqlSafe(bind_sql(sql, &db.backend)))
+}
+
+#[allow(dead_code)]
+pub fn query_as<O>(
+    sql: &'static str,
+    db: &Db,
+) -> sqlx::query::QueryAs<'static, Any, O, sqlx::any::AnyArguments>
+where
+    O: for<'r> sqlx::FromRow<'r, sqlx::any::AnyRow>,
+{
+    sqlx::query_as(AssertSqlSafe(bind_sql(sql, &db.backend)))
 }

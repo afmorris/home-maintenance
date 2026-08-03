@@ -1,7 +1,9 @@
+#![allow(dead_code)]
 // All SQL lives here, one module per aggregate. Placeholders are authored in
 // Postgres `$N` style and rewritten to `?` for SQLite by db::query helpers.
 
 pub mod assets;
+pub mod attachments;
 pub mod locations;
 pub mod log;
 pub mod reminders;

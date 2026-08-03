@@ -6,6 +6,7 @@ mod error;
 mod notify;
 mod repo;
 mod templates;
+mod util;
 mod web;
 
 use crate::config::CONFIG;
