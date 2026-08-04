@@ -10,7 +10,9 @@ use axum::response::Response;
 use axum::routing::{get, post};
 
 pub mod assets;
+pub mod attachments;
 pub mod health;
+pub mod locations;
 pub mod log;
 pub mod reminders;
 pub mod stats;
@@ -28,7 +30,7 @@ pub fn api_router(db: Db) -> Router {
         .route("/api/v1/reminders", get(reminders::list_reminders))
         .route(
             "/api/v1/tasks",
-            get(tasks::list_tasks).post(tasks::create_task),
+            get(tasks::list_tasks).post(tasks::create_task_handler),
         )
         .route(
             "/api/v1/tasks/{id}",
@@ -60,12 +62,19 @@ pub fn api_router(db: Db) -> Router {
         )
         .route(
             "/api/v1/locations",
-            get(assets::placeholder).post(assets::placeholder),
+            get(locations::list_locations).post(locations::create_location),
+        )
+        .route(
+            "/api/v1/locations/{id}",
+            get(locations::get_location)
+                .put(locations::update_location)
+                .delete(locations::delete_location),
         )
         .route(
             "/api/v1/log-entries",
             get(log::list_entries).post(log::create_entry),
         )
+        .route("/api/v1/attachments", post(attachments::create_attachment))
         .route("/api/v1/stats/costs", get(stats::costs))
         .layer(from_fn(api_auth_middleware))
         .with_state(state)

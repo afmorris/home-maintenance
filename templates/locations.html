@@ -16,11 +16,43 @@
       <a href="/tasks">Tasks</a>
       <a href="/log">Log</a>
       <a href="/supplies">Supplies</a>
+      <a href="/locations">Locations</a>
       <a href="/settings">Settings</a>
     </nav>
   </header>
   <main>
     <h1>Locations</h1>
+
+    <form method="post" action="/locations" class="inline-form">
+      <label>Name <input type="text" name="name" required></label>
+      <label>
+        Kind
+        <select name="kind">
+          <option value="room">Room</option>
+          <option value="floor">Floor</option>
+          <option value="outbuilding">Outbuilding</option>
+          <option value="outdoor">Outdoor</option>
+          <option value="other">Other</option>
+        </select>
+      </label>
+      <button type="submit" class="btn btn-primary">Add</button>
+    </form>
+
+    {% if locations.is_empty() %}
+      <p class="empty">No locations yet.</p>
+    {% else %}
+      <ul class="item-list">
+        {% for l in locations %}
+        <li>
+          <strong>{{ l.name }}</strong>
+          <span class="hint">{{ l.kind }}</span>
+          <form method="post" action="/locations/{{ l.id }}/delete" class="inline-form">
+            <button type="submit" class="btn btn-secondary">Delete</button>
+          </form>
+        </li>
+        {% endfor %}
+      </ul>
+    {% endif %}
   </main>
 </body>
 </html>

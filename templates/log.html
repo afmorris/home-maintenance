@@ -16,11 +16,79 @@
       <a href="/tasks">Tasks</a>
       <a href="/log">Log</a>
       <a href="/supplies">Supplies</a>
+      <a href="/locations">Locations</a>
       <a href="/settings">Settings</a>
     </nav>
   </header>
   <main>
     <h1>Log</h1>
+
+    <form method="get" action="/log" class="filter-form">
+      <label>
+        Asset
+        <select name="asset_id">
+          <option value="">All</option>
+          {% for a in assets %}
+          <option value="{{ a.id }}" {% if query.asset_id.as_deref() == Some(a.id.as_str()) %}selected{% endif %}>{{ a.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        Kind
+        <select name="kind">
+          <option value="">All</option>
+          <option value="service" {% if query.kind.as_deref() == Some("service") %}selected{% endif %}>Service</option>
+          <option value="repair" {% if query.kind.as_deref() == Some("repair") %}selected{% endif %}>Repair</option>
+          <option value="upgrade" {% if query.kind.as_deref() == Some("upgrade") %}selected{% endif %}>Upgrade</option>
+          <option value="inspection" {% if query.kind.as_deref() == Some("inspection") %}selected{% endif %}>Inspection</option>
+        </select>
+      </label>
+      <label>From <input type="date" name="from" value="{{ query.from.as_deref().unwrap_or("") }}"></label>
+      <label>To <input type="date" name="to" value="{{ query.to.as_deref().unwrap_or("") }}"></label>
+      <label>Search <input type="text" name="search" value="{{ query.search.as_deref().unwrap_or("") }}"></label>
+      <button type="submit" class="btn btn-secondary">Filter</button>
+      <a href="/log/new" class="btn btn-primary">New entry</a>
+    </form>
+
+    {% if entries.is_empty() %}
+      <p class="empty">No log entries found.</p>
+    {% else %}
+      <table class="log-table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Kind</th>
+            <th>Asset</th>
+            <th>Cost</th>
+            <th>Vendor</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for e in entries %}
+          <tr>
+            <td>{{ e.completed_date }}</td>
+            <td>{{ e.kind }}</td>
+            <td>
+              {% for a in assets %}
+                {% if e.asset_id.as_deref() == Some(a.id.as_str()) %}{{ a.name }}{% endif %}
+              {% endfor %}
+            </td>
+            <td>
+              {% if let Some(c) = e.cost_cents %}
+              {% let dollars = c / 100 %}
+              {% let cents = c % 100 %}
+              ${{ dollars }}.{% if cents < 10 %}0{% endif %}{{ cents }}
+              {% endif %}
+            </td>
+            <td>{{ e.vendor.as_deref().unwrap_or("") }}</td>
+            <td>{{ e.notes.as_deref().unwrap_or("") }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
+
   </main>
 </body>
 </html>

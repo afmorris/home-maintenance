@@ -16,11 +16,61 @@
       <a href="/tasks">Tasks</a>
       <a href="/log">Log</a>
       <a href="/supplies">Supplies</a>
+      <a href="/locations">Locations</a>
       <a href="/settings">Settings</a>
     </nav>
   </header>
   <main>
     <h1>{{ title }}</h1>
+
+    <form method="post" action="{% if asset.is_some() %}/assets/{{ asset.as_ref().unwrap().id }}{% else %}/assets{% endif %}">
+      <div class="form-row">
+        <label>
+          Name
+          <input type="text" name="name" value="{% if let Some(a) = asset %}{{ a.name }}{% endif %}" required>
+        </label>
+      </div>
+      <div class="form-row">
+        <label>
+          Location
+          <select name="location_id">
+            <option value="">None</option>
+            {% for l in locations %}
+            <option value="{{ l.id }}" {% if let Some(a) = asset %}{% if a.location_id.as_deref() == Some(l.id.as_str()) %}selected{% endif %}{% endif %}>{{ l.name }}</option>
+            {% endfor %}
+          </select>
+        </label>
+      </div>
+      <div class="form-row">
+        <label>
+          Category
+          <input type="text" name="category" list="categories" value="{% if let Some(a) = asset %}{{ a.category }}{% endif %}" required>
+          <datalist id="categories">
+            {% for c in categories %}
+            <option value="{{ c }}">
+            {% endfor %}
+          </datalist>
+        </label>
+      </div>
+      <div class="form-row">
+        <label>Make <input type="text" name="make" value="{% if let Some(a) = asset %}{{ a.make.as_deref().unwrap_or("") }}{% endif %}"></label>
+        <label>Model <input type="text" name="model" value="{% if let Some(a) = asset %}{{ a.model.as_deref().unwrap_or("") }}{% endif %}"></label>
+      </div>
+      <div class="form-row">
+        <label>Serial <input type="text" name="serial" value="{% if let Some(a) = asset %}{{ a.serial.as_deref().unwrap_or("") }}{% endif %}"></label>
+      </div>
+      <div class="form-row">
+        <label>Install date <input type="date" name="install_date" value="{% if let Some(a) = asset %}{{ a.install_date.as_deref().unwrap_or("") }}{% endif %}"></label>
+        <label>Warranty end <input type="date" name="warranty_end" value="{% if let Some(a) = asset %}{{ a.warranty_end.as_deref().unwrap_or("") }}{% endif %}"></label>
+      </div>
+      <div class="form-row">
+        <label>Notes <textarea name="notes" rows="4">{% if let Some(a) = asset %}{{ a.notes.as_deref().unwrap_or("") }}{% endif %}</textarea></label>
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Save</button>
+        <a href="/assets" class="btn btn-secondary">Cancel</a>
+      </div>
+    </form>
   </main>
 </body>
 </html>

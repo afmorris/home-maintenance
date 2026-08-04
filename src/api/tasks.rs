@@ -3,6 +3,7 @@ use crate::domain::recurrence::ReminderStatus;
 use crate::error::AppError;
 use crate::repo::log::LogEntry;
 use crate::repo::reminders::{complete_task_transaction, snooze_reminder};
+use crate::repo::tasks::{self, TaskInput};
 use crate::util::today_in_tz;
 use crate::web::AppState;
 use axum::Json;
@@ -12,38 +13,137 @@ use serde::Deserialize;
 use serde_json::json;
 
 pub async fn list_tasks(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    Ok(Json(json!({"tasks": []})))
+    let rows = tasks::list_tasks(&state.db).await?;
+    Ok(Json(json!({"tasks": rows})))
 }
 
-pub async fn create_task(
-    State(_state): State<AppState>,
-    Json(_payload): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, AppError> {
-    Ok(Json(json!({"id": ""})))
+#[derive(Deserialize)]
+pub struct CreateTaskPayload {
+    asset_id: Option<String>,
+    name: String,
+    description: Option<String>,
+    schedule_mode: String,
+    interval_value: Option<i64>,
+    interval_unit: Option<String>,
+    season_anchor: Option<String>,
+    fixed_interval_years: Option<i64>,
+    estimated_minutes: Option<i64>,
+    last_done_date: Option<String>,
 }
 
-pub async fn get_task(
-    State(_state): State<AppState>,
-    Path(_id): Path<String>,
+pub async fn create_task_handler(
+    State(state): State<AppState>,
+    Json(payload): Json<CreateTaskPayload>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    Err(AppError::NotFound)
+    validate_task_payload(&payload)?;
+
+    let id = uuid::Uuid::now_v7().to_string();
+    let input = task_input_from_payload(&payload);
+    let today = today_in_tz(&CONFIG.app_timezone);
+    let last_done = payload
+        .last_done_date
+        .and_then(|s| s.parse::<NaiveDate>().ok());
+
+    let task = tasks::create_task(&state.db, &id, input, today, last_done).await?;
+    Ok(Json(json!({"id": task.id, "task": task})))
+}
+
+#[derive(Deserialize)]
+pub struct UpdateTaskPayload {
+    asset_id: Option<String>,
+    name: Option<String>,
+    description: Option<String>,
+    schedule_mode: Option<String>,
+    interval_value: Option<i64>,
+    interval_unit: Option<String>,
+    season_anchor: Option<String>,
+    fixed_interval_years: Option<i64>,
+    estimated_minutes: Option<i64>,
+    last_done_date: Option<String>,
 }
 
 pub async fn update_task(
-    State(_state): State<AppState>,
-    Path(_id): Path<String>,
-    Json(_payload): Json<serde_json::Value>,
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    Json(payload): Json<UpdateTaskPayload>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    Err(AppError::NotFound)
+    let input = TaskInput {
+        asset_id: payload.asset_id,
+        name: payload.name.unwrap_or_default(),
+        description: payload.description,
+        schedule_mode: payload.schedule_mode.unwrap_or_default(),
+        interval_value: payload.interval_value,
+        interval_unit: payload.interval_unit,
+        season_anchor: payload.season_anchor,
+        fixed_interval_years: payload.fixed_interval_years,
+        estimated_minutes: payload.estimated_minutes,
+    };
+
+    let today = today_in_tz(&CONFIG.app_timezone);
+    let last_done = payload
+        .last_done_date
+        .and_then(|s| s.parse::<NaiveDate>().ok());
+
+    let task = tasks::update_task(&state.db, &id, input, today, last_done).await?;
+    Ok(Json(json!({"id": task.id, "task": task})))
+}
+
+pub async fn get_task(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let task = tasks::get_task(&state.db, &id).await?;
+    Ok(Json(json!({"task": task})))
 }
 
 pub async fn delete_task(
-    State(_state): State<AppState>,
-    Path(_id): Path<String>,
+    State(state): State<AppState>,
+    Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    Err(AppError::NotFound)
+    tasks::delete_task(&state.db, &id).await?;
+    Ok(Json(json!({"deleted": true})))
+}
+
+fn validate_task_payload(payload: &CreateTaskPayload) -> Result<(), AppError> {
+    match payload.schedule_mode.as_str() {
+        "floating" => {
+            if payload.interval_value.is_none() || payload.interval_unit.is_none() {
+                return Err(AppError::BadRequest(
+                    "floating schedule requires interval_value and interval_unit".to_string(),
+                ));
+            }
+        }
+        "fixed" => {
+            if payload.season_anchor.is_none() {
+                return Err(AppError::BadRequest(
+                    "fixed schedule requires season_anchor".to_string(),
+                ));
+            }
+        }
+        _ => {
+            return Err(AppError::BadRequest(format!(
+                "invalid schedule_mode: {}",
+                payload.schedule_mode
+            )));
+        }
+    }
+    Ok(())
+}
+
+fn task_input_from_payload(payload: &CreateTaskPayload) -> TaskInput {
+    TaskInput {
+        asset_id: payload.asset_id.clone(),
+        name: payload.name.clone(),
+        description: payload.description.clone(),
+        schedule_mode: payload.schedule_mode.clone(),
+        interval_value: payload.interval_value,
+        interval_unit: payload.interval_unit.clone(),
+        season_anchor: payload.season_anchor.clone(),
+        fixed_interval_years: payload.fixed_interval_years,
+        estimated_minutes: payload.estimated_minutes,
+    }
 }
 
 #[derive(Deserialize)]

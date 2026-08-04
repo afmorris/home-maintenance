@@ -16,11 +16,61 @@
       <a href="/tasks">Tasks</a>
       <a href="/log">Log</a>
       <a href="/supplies">Supplies</a>
+      <a href="/locations">Locations</a>
       <a href="/settings">Settings</a>
     </nav>
   </header>
   <main>
     <h1>Assets</h1>
+
+    <div class="toolbar">
+      <a href="/assets/new" class="btn btn-primary">New asset</a>
+      <form method="get" action="/assets" class="filter-form">
+        <label>
+          Category
+          <select name="category">
+            <option value="">All</option>
+            {% for c in categories %}
+            <option value="{{ c }}" {% if selected_category.as_deref() == Some(c) %}selected{% endif %}>{{ c }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label>
+          <input type="checkbox" name="archived" value="1" {% if show_archived %}checked{% endif %}>
+          Show archived
+        </label>
+        <button type="submit" class="btn btn-secondary">Filter</button>
+      </form>
+    </div>
+
+    {% if assets.is_empty() %}
+      <p class="empty">No assets found.</p>
+    {% else %}
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Category</th>
+            <th>Location</th>
+            <th>Make / Model</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for a in assets %}
+          <tr>
+            <td><a href="/assets/{{ a.id }}">{{ a.name }}</a></td>
+            <td>{{ a.category }}</td>
+            <td>
+              {% for l in locations %}
+                {% if a.location_id.as_deref() == Some(l.id.as_str()) %}{{ l.name }}{% endif %}
+              {% endfor %}
+            </td>
+            <td>{{ a.make.as_deref().unwrap_or("") }} {{ a.model.as_deref().unwrap_or("") }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
   </main>
 </body>
 </html>

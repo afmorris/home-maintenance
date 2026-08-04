@@ -16,11 +16,43 @@
       <a href="/tasks">Tasks</a>
       <a href="/log">Log</a>
       <a href="/supplies">Supplies</a>
+      <a href="/locations">Locations</a>
       <a href="/settings">Settings</a>
     </nav>
   </header>
   <main>
     <h1>Tasks</h1>
+
+    <div class="toolbar">
+      <a href="/tasks/new" class="btn btn-primary">New task</a>
+    </div>
+
+    {% if tasks.is_empty() %}
+      <p class="empty">No active tasks.</p>
+    {% else %}
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Task</th>
+            <th>Asset</th>
+            <th>Schedule</th>
+            <th>Due</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for t in tasks %}
+          <tr>
+            <td>{{ t.name }}</td>
+            <td>{{ t.asset_name.as_deref().unwrap_or("—") }}</td>
+            <td>{{ t.schedule }}</td>
+            <td>{{ t.due_date.as_deref().unwrap_or("—") }}</td>
+            <td><a href="/tasks/{{ t.id }}/edit" class="btn btn-secondary">Edit</a></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
   </main>
 </body>
 </html>

@@ -16,11 +16,74 @@
       <a href="/tasks">Tasks</a>
       <a href="/log">Log</a>
       <a href="/supplies">Supplies</a>
+      <a href="/locations">Locations</a>
       <a href="/settings">Settings</a>
     </nav>
   </header>
   <main>
     <h1>{{ title }}</h1>
+
+    <form method="post" action="{% if is_edit %}/tasks/{{ task.as_ref().unwrap().id }}/edit{% else %}/tasks{% endif %}">
+      <div class="form-row">
+        <label>
+          Asset
+          <select name="asset_id">
+            <option value="">None</option>
+            {% for a in assets %}
+            <option value="{{ a.id }}" {% if let Some(t) = task %}{% if t.asset_id.as_deref() == Some(a.id.as_str()) %}selected{% endif %}{% endif %}>{{ a.name }}</option>
+            {% endfor %}
+          </select>
+        </label>
+      </div>
+      <div class="form-row">
+        <label>
+          Name
+          <input type="text" name="name" value="{% if let Some(t) = task %}{{ t.name }}{% endif %}" required>
+        </label>
+      </div>
+      <div class="form-row">
+        <label>
+          Description
+          <textarea name="description" rows="3">{% if let Some(t) = task %}{{ t.description.as_deref().unwrap_or("") }}{% endif %}</textarea>
+        </label>
+      </div>
+      <div class="form-row">
+        <label>
+          Schedule mode
+          <select name="schedule_mode" required>
+            <option value="floating" {% if let Some(t) = task %}{% if t.schedule_mode == "floating" %}selected{% endif %}{% endif %}>Floating</option>
+            <option value="fixed" {% if let Some(t) = task %}{% if t.schedule_mode == "fixed" %}selected{% endif %}{% endif %}>Fixed</option>
+          </select>
+        </label>
+      </div>
+      <div class="form-row schedule-floating">
+        <label>Interval value <input type="number" name="interval_value" value="{% if let Some(t) = task %}{{ t.interval_value.unwrap_or(1) }}{% else %}1{% endif %}"></label>
+        <label>
+          Unit
+          <select name="interval_unit">
+            <option value="day" {% if let Some(t) = task %}{% if t.interval_unit.as_deref() == Some("day") %}selected{% endif %}{% endif %}>Day</option>
+            <option value="week" {% if let Some(t) = task %}{% if t.interval_unit.as_deref() == Some("week") %}selected{% endif %}{% endif %}>Week</option>
+            <option value="month" {% if let Some(t) = task %}{% if t.interval_unit.as_deref() == Some("month") %}selected{% endif %}{% endif %}>Month</option>
+            <option value="year" {% if let Some(t) = task %}{% if t.interval_unit.as_deref() == Some("year") %}selected{% endif %}{% endif %}>Year</option>
+          </select>
+        </label>
+      </div>
+      <div class="form-row schedule-fixed">
+        <label>Season anchor (MM-DD) <input type="text" name="season_anchor" value="{% if let Some(t) = task %}{{ t.season_anchor.as_deref().unwrap_or("") }}{% endif %}"></label>
+        <label>Interval years <input type="number" name="fixed_interval_years" value="{% if let Some(t) = task %}{{ t.fixed_interval_years.unwrap_or(1) }}{% else %}1{% endif %}"></label>
+      </div>
+      <div class="form-row">
+        <label>Estimated minutes <input type="number" name="estimated_minutes" value="{% if let Some(t) = task %}{{ t.estimated_minutes.unwrap_or(0) }}{% else %}0{% endif %}"></label>
+      </div>
+      <div class="form-row">
+        <label>Last done date <input type="date" name="last_done_date"></label>
+        <span class="hint">Used to compute the initial due date.</span>
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Save</button>
+        <a href="/tasks" class="btn btn-secondary">Cancel</a>
+      </div>
+    </form>
   </main>
 </body>
 </html>

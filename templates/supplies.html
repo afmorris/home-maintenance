@@ -16,11 +16,47 @@
       <a href="/tasks">Tasks</a>
       <a href="/log">Log</a>
       <a href="/supplies">Supplies</a>
+      <a href="/locations">Locations</a>
       <a href="/settings">Settings</a>
     </nav>
   </header>
   <main>
     <h1>Supplies</h1>
+
+    <form method="post" action="/supplies" class="inline-form">
+      <label>Name <input type="text" name="name" required></label>
+      <label>Spec <input type="text" name="spec"></label>
+      <button type="submit" class="btn btn-primary">Add</button>
+    </form>
+
+    {% if supplies.is_empty() %}
+      <p class="empty">No supplies yet.</p>
+    {% else %}
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Spec</th>
+            <th>Tasks</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in supplies %}
+          <tr>
+            <td>{{ s.name }}</td>
+            <td>{{ s.spec.as_deref().unwrap_or("") }}</td>
+            <td>{{ s.task_count }}</td>
+            <td>
+              <form method="post" action="/supplies/{{ s.id }}/delete" class="inline-form">
+                <button type="submit" class="btn btn-secondary">Delete</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
   </main>
 </body>
 </html>

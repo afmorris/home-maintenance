@@ -16,11 +16,116 @@
       <a href="/tasks">Tasks</a>
       <a href="/log">Log</a>
       <a href="/supplies">Supplies</a>
+      <a href="/locations">Locations</a>
       <a href="/settings">Settings</a>
     </nav>
   </header>
   <main>
-    <h1>{{ title }}</h1>
+    <h1>{{ asset.name }}</h1>
+    <p class="meta">
+      <strong>Category:</strong> {{ asset.category }}
+      {% if let Some(loc) = location %}
+      <strong>Location:</strong> {{ loc.name }}
+      {% endif %}
+      {% if let Some(d) = asset.install_date.as_deref() %}
+      <strong>Installed:</strong> {{ d }}
+      {% endif %}
+      {% if let Some(d) = asset.warranty_end.as_deref() %}
+      <strong>Warranty until:</strong> {{ d }}
+      {% endif %}
+    </p>
+
+    {% if let Some(notes) = asset.notes.as_deref() %}
+    <div class="asset-notes">
+      <p>{{ notes }}</p>
+    </div>
+    {% endif %}
+
+    <div class="toolbar">
+      <a href="/assets/{{ asset.id }}/edit" class="btn btn-secondary">Edit</a>
+      <form method="post" action="/assets/{{ asset.id }}/archive" class="inline-form">
+        <button type="submit" class="btn btn-secondary">Archive</button>
+      </form>
+    </div>
+
+    <section>
+      <h2>Tasks</h2>
+      {% if tasks.is_empty() %}
+        <p class="empty">No tasks for this asset.</p>
+      {% else %}
+        <ul class="item-list">
+          {% for t in tasks %}
+          <li><a href="/tasks/{{ t.id }}/edit">{{ t.name }}</a> <span class="hint">{{ t.schedule }}</span></li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+      <a href="/tasks/new?asset_id={{ asset.id }}" class="btn btn-primary">Add task</a>
+    </section>
+
+    <section>
+      <h2>Log entries</h2>
+      {% if log_entries.is_empty() %}
+        <p class="empty">No log entries for this asset.</p>
+      {% else %}
+        <table class="log-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Kind</th>
+              <th>Cost</th>
+              <th>Vendor</th>
+              <th>Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for e in log_entries %}
+            <tr>
+              <td>{{ e.completed_date }}</td>
+              <td>{{ e.kind }}</td>
+              <td>
+                {% if let Some(c) = e.cost_cents %}
+                {% let dollars = c / 100 %}
+                {% let cents = c % 100 %}
+                ${{ dollars }}.{% if cents < 10 %}0{% endif %}{{ cents }}
+                {% endif %}
+              </td>
+              <td>{{ e.vendor.as_deref().unwrap_or("") }}</td>
+              <td>{{ e.notes.as_deref().unwrap_or("") }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        <p><strong>Total logged cost:</strong>
+          {% let dollars = total_cost_cents / 100 %}
+          {% let cents = total_cost_cents % 100 %}
+          ${{ dollars }}.{% if cents < 10 %}0{% endif %}{{ cents }}
+        </p>
+      {% endif %}
+    </section>
+
+    <section>
+      <h2>Attachments</h2>
+      <form method="post" action="/api/v1/attachments" enctype="multipart/form-data" class="upload-form">
+        <input type="hidden" name="owner_type" value="asset">
+        <input type="hidden" name="owner_id" value="{{ asset.id }}">
+        <input type="file" name="file" required>
+        <button type="submit" class="btn btn-secondary">Upload</button>
+      </form>
+
+      {% if attachments.is_empty() %}
+        <p class="empty">No attachments yet.</p>
+      {% else %}
+        <ul class="attachment-list">
+          {% for a in attachments %}
+          <li>
+            {{ a.filename }}
+            ({{ a.byte_size }} bytes, {{ a.content_type }})
+            {% if let Some(cap) = a.caption.as_deref() %}- {{ cap }}{% endif %}
+          </li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    </section>
   </main>
 </body>
 </html>

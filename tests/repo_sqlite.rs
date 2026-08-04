@@ -21,6 +21,7 @@ use home_maintenance::repo::supplies::{
 };
 use home_maintenance::repo::tags::{TagInput, attach_tag, create_tag, list_tags_for_entry};
 use home_maintenance::repo::tasks::{TaskInput, create_task, delete_task, get_task};
+use home_maintenance::util::today_in_tz;
 use std::future::Future;
 use std::sync::Mutex;
 
@@ -150,7 +151,8 @@ async fn test_task_and_reminder() {
             interval_unit: Some("month".to_string()),
             ..TaskInput::default()
         };
-        let created = create_task(&db, &id, input).await.unwrap();
+        let today = today_in_tz("America/New_York");
+        let created = create_task(&db, &id, input, today, None).await.unwrap();
         assert_eq!(created.schedule_mode, "floating");
 
         upsert_reminder(&db, &id, "2025-01-15", None).await.unwrap();
@@ -200,7 +202,8 @@ async fn test_list_reminders_with_tasks() {
             interval_unit: Some("month".to_string()),
             ..TaskInput::default()
         };
-        create_task(&db, &task_id, task).await.unwrap();
+        let today = today_in_tz("America/New_York");
+        create_task(&db, &task_id, task, today, None).await.unwrap();
         upsert_reminder(&db, &task_id, "2025-01-01", None)
             .await
             .unwrap();
@@ -224,7 +227,8 @@ async fn test_complete_task_transaction_floating() {
             interval_unit: Some("month".to_string()),
             ..TaskInput::default()
         };
-        create_task(&db, &task_id, task).await.unwrap();
+        let today = today_in_tz("America/New_York");
+        create_task(&db, &task_id, task, today, None).await.unwrap();
         upsert_reminder(&db, &task_id, "2025-01-01", None)
             .await
             .unwrap();
@@ -256,6 +260,37 @@ async fn test_complete_task_transaction_floating() {
             .await
             .unwrap();
         assert!(entries.iter().any(|e| e.id == log_id));
+    })
+    .await
+}
+
+#[tokio::test]
+async fn test_task_creation_computes_reminder() {
+    with_db(|db| async move {
+        let today = today_in_tz("America/New_York");
+        let task_id = uuid();
+        let input = TaskInput {
+            name: "Quarterly filter change".to_string(),
+            schedule_mode: "floating".to_string(),
+            interval_value: Some(3),
+            interval_unit: Some("month".to_string()),
+            ..TaskInput::default()
+        };
+        let created = create_task(&db, &task_id, input, today, None)
+            .await
+            .unwrap();
+        assert_eq!(created.schedule_mode, "floating");
+
+        let reminders = list_reminders(&db, None, None, None).await.unwrap();
+        let reminder = reminders
+            .iter()
+            .find(|r| r.task_id == task_id)
+            .expect("reminder should be created");
+        let due: NaiveDate = reminder.due_date.parse().unwrap();
+        let expected = today
+            .checked_add_months(chrono::Months::new(3))
+            .expect("valid date");
+        assert_eq!(due, expected, "initial due date should be today + 3 months");
     })
     .await
 }

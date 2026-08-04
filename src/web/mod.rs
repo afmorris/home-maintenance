@@ -6,7 +6,10 @@ use axum::extract::{FromRef, FromRequestParts, Request, State};
 use axum::http::{StatusCode, header, request::Parts};
 use axum::middleware::{Next, from_fn_with_state};
 use axum::response::{Html, IntoResponse, Redirect, Response};
-use axum::{Router, routing::get};
+use axum::{
+    Router,
+    routing::{get, post},
+};
 use cookie::{Cookie, CookieJar, Key};
 use std::convert::Infallible;
 use std::sync::Arc;
@@ -62,13 +65,31 @@ pub async fn ui_router(db: Db) -> Router {
         .route("/", get(dashboard::index))
         .route("/assets", get(assets::list_assets))
         .route("/assets/new", get(assets::new_asset_form))
-        .route("/assets/{id}", get(assets::view_asset))
-        .route("/tasks", get(tasks::list_tasks))
+        .route("/assets", post(assets::create_asset))
+        .route(
+            "/assets/{id}",
+            get(assets::view_asset).post(assets::update_asset),
+        )
+        .route("/assets/{id}/archive", post(assets::archive_asset))
+        .route("/assets/{id}/edit", get(assets::edit_asset_form))
+        .route("/tasks", get(tasks::list_tasks).post(tasks::create_task))
         .route("/tasks/new", get(tasks::new_task_form))
-        .route("/tasks/{id}/edit", get(tasks::edit_task_form))
-        .route("/log", get(log::list_log))
-        .route("/supplies", get(supplies::list_supplies))
-        .route("/locations", get(locations::list_locations))
+        .route(
+            "/tasks/{id}/edit",
+            get(tasks::edit_task_form).post(tasks::update_task),
+        )
+        .route("/log", get(log::list_log).post(log::create_entry))
+        .route("/log/new", get(log::new_log_form))
+        .route(
+            "/supplies",
+            get(supplies::list_supplies).post(supplies::create_supply),
+        )
+        .route("/supplies/{id}/delete", post(supplies::delete_supply))
+        .route(
+            "/locations",
+            get(locations::list_locations).post(locations::create_location),
+        )
+        .route("/locations/{id}/delete", post(locations::delete_location))
         .route("/settings", get(settings::settings_page))
         .route("/login", get(login::login_page).post(login::login_submit))
         .route("/logout", get(login::logout));
